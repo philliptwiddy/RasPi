@@ -1,6 +1,7 @@
 import os
 import time
-#import datetime
+from picamera import PiCamera
+from datetime import datetime
 #import glob
 # import pymysql
 import RPi.GPIO as GPIO
@@ -28,8 +29,34 @@ GPIO.setmode(GPIO.BCM)
 #freezing = 0
 #heateron = 15
 
+def getDateTime():
+    dt = datetime.now().strftime("%Y-%m-%d,%H:%M:%S")
+    return dt
+
+
+def takePhoto():
+    camera = PiCamera()
+    directory = "/home/pi/motion/"
+    dateTime = getDateTime()
+    filename = "motion-{}.png".format(str(dateTime))
+    camera.capture('{}{}'.format(directory, filename))
+    camera.close()
+
+
+def takeVideo(seconds):
+    camera = PiCamera()
+    directory = "/home/pi/motion/"
+    dateTime = getDateTime()
+    filename = "motion-{}.h264".format(str(dateTime))
+    camera.resolution = (640, 480)
+    camera.start_recording("{}{}".format(directory, filename))
+    camera.wait_recording(seconds)
+    camera.stop_recording()
+    camera.close()
+
+
 def lightOn():
-    url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B1B8YgawmklZuao1HoFEfSO"
+    url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
     payload = {
         "method":"passthrough",
         "params":{
@@ -52,7 +79,7 @@ def lightOn():
     return lightStatus
 
 def lightOff():
-    url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B1B8YgawmklZuao1HoFEfSO"
+    url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
     payload = {
         "method":"passthrough",
         "params":{
@@ -68,6 +95,7 @@ def lightOff():
     print()
     if response.text[:15] == '{"error_code":0':
         print("light turned off")
+        blueLEDOff()
         lightStatus = 0
     else:
         print("light did not turn off")
@@ -100,12 +128,15 @@ def blueLEDOff():
 def redLEDOn(): # using red LED to show user if motion has been detected
     GPIO.setup(pinLEDRed, GPIO.OUT)
     GPIO.output(pinLEDRed, GPIO.HIGH)
-    time.sleep(5)
+
+
+def redLEDOff():
+    GPIO.setup(pinLEDRed, GPIO.OUT)
     GPIO.output(pinLEDRed, GPIO.LOW)
 
 
 #######
-homeOfficeLightToken = 'dadc92e2-B1B8YgawmklZuao1HoFEfSO'
+homeOfficeLightToken = 'dadc92e2-B25hib6hw7YpK1exxwa1L7l'
 appServerUrl = 'https://eu-wap.tplinkcloud.com'
 deviceId = '8006DF15B34A28FD866A58D702140318198880A7'
 lightOnTimeS = 15
@@ -114,7 +145,7 @@ pinLDR = 27 # set a pin value for the Light Dependent Resistor
 pinLEDBlue = 18 # set a pin value for the blue LED
 pinLEDRed = 24 # set a pin value for the red LED
 lastDetectionTime = time.time()
-lightOnUntil = lastDetectionTime + lightOnTimeS
+lightOnUntil = time.time()# lastDetectionTime + lightOnTimeS
 lightOnThreshold = 500 # set a value above which the light should come on
 currentMotion = 0 # Current status of motion detection
 lightStatus = 0 # Current status of light
@@ -134,6 +165,7 @@ def main():
             currentMotion = 0
 
         print("...Ready")
+        lightOnUntil = time.time()
         #Loop until user quits with CTRL-C
         while True:
             # Read PIR state
@@ -152,7 +184,7 @@ def main():
                 # If current light level above threshold
                 if lightLevel > lightOnThreshold:
                     blueLEDOn()
-                    print("blue light would come on")
+                    print("blue light on")
                     if lightStatus == 0:
                         lightStatus = lightOn()
                 elif lightLevel <= lightOnThreshold:
