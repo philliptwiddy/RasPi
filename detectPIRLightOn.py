@@ -2,6 +2,10 @@ import os
 import time
 from picamera import PiCamera
 from datetime import datetime
+import tweepy, json
+from random import choice
+
+
 #import glob
 # import pymysql
 import RPi.GPIO as GPIO
@@ -135,6 +139,36 @@ def redLEDOff():
     GPIO.output(pinLEDRed, GPIO.LOW)
 
 
+def tweet(mediaName):
+    with open("twitter_auth.json") as file:
+        secrets = json.load(file)
+
+    auth = tweepy.OAuthHandler(secrets["consumer_key"], secrets["consumer_secret"])
+    auth.set_access_token(secrets["access_token"], secrets["access_token_secret"])
+
+    twitter = tweepy.API(auth)
+
+    # to send a status update
+    #twitter.update_status("My first automated tweet!")
+
+    # to send an image with a status update
+    #twitter.update_with_media("/path/to/image.jpg", "your status update")
+
+    # to create a list of phrases to send when motion is detected
+    phrases = [
+        "Ahoy burglar!",
+        "What out, dodgy geezer about!",
+        "Motion detected!",
+        "Humphry's about!",
+        "Oi, oi!",
+        "Don't steal my security bot!"
+    ]
+
+    my_phrase = choice(phrases)
+
+    twitter.update_with_media("/home/pi/motion/{}, {}"format(mediaName, my_phrase))
+
+
 #######
 homeOfficeLightToken = 'dadc92e2-B25hib6hw7YpK1exxwa1L7l'
 appServerUrl = 'https://eu-wap.tplinkcloud.com'
@@ -146,11 +180,14 @@ pinLEDBlue = 18 # set a pin value for the blue LED
 pinLEDRed = 24 # set a pin value for the red LED
 lastDetectionTime = time.time()
 lightOnUntil = time.time()# lastDetectionTime + lightOnTimeS
-lightOnThreshold = 500 # set a value above which the light should come on
+LIGHTONTHRESHOLD = 500 # set a value above which the light should come on
 currentMotion = 0 # Current status of motion detection
 lightStatus = 0 # Current status of light
-lightLevel = 0 # Current light level using readLRD() function 
-
+lightLevel = 0 # Current light level using readLRD() function
+MINCAMERADELAY = 5 * 60 # Time in seconds between taking photo / video
+VIDEODURATION = 3 # Duration in seconds for video recording
+earliestCamera = time.time() # Earliest point next recording will take place (used to limit frequency of recording)
+redLEDOnUntil = time.time()
 
 def main():
     # Set up pinPIR as input
@@ -159,6 +196,8 @@ def main():
     try:
         # Turn light off to start
         lightStatus = lightOff()
+        # Set current time as time for earliest recording
+        earliestCamera = time.time()
         print("Waiting for PIR to settle...")
         # Loop until PIR output is 0
         while GPIO.input(pinPIR) ==1:
@@ -174,27 +213,32 @@ def main():
             if currentMotion == 1:
                 print("motion detected")
                 redLEDOn()
-                lastDetectionTime = time.time()
-                print("last detection time = {}".format(lastDetectionTime))
+                lastDetectionTime = time.time() ##### not very good around here - two variables with different time
+                strfLastDetectionTime = datetime.now().strftime("%H:%M:%S")
+                print("last detection time = {}".format(strfLastDetectionTime))
                 lightOnUntil = lastDetectionTime + lightOnTimeS
                 print("light stays on until {}".format(lightOnUntil))
                 # Detect current light level
                 lightLevel = readLDR()
                 print("light reading is {}".format(lightLevel))
                 # If current light level above threshold
-                if lightLevel > lightOnThreshold:
-                    blueLEDOn()
-                    print("blue light on")
+                if lightLevel > LIGHTONTHRESHOLD:
                     if lightStatus == 0:
+                        blueLEDOn()
+                        print("blue light on")
                         lightStatus = lightOn()
-                elif lightLevel <= lightOnThreshold:
-                    blueLEDOff()
+
+                takeVideo(VIDEODURATION)
+                tweet()
+                
+#                elif lightLevel <= LIGHTONTHRESHOLD:
+#                    blueLEDOff()
                     # elif current light level above threshold
                 # elif lightStatus == 1:
                 # send instruction to turn off light
                     # set light status to 0
 
-            elif time.time() > lightOnUntil:
+            if time.time() > lightOnUntil:
                 if lightStatus == 1:
                     lightStatus = lightOff()
             time.sleep(1)
