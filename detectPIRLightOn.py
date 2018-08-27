@@ -2,7 +2,8 @@ import os
 import time
 from picamera import PiCamera
 from datetime import datetime
-import tweepy, json
+import tweepy
+import json
 from random import choice
 
 
@@ -40,11 +41,13 @@ def getDateTime():
 
 def takePhoto():
     camera = PiCamera()
+    camera.rotation = 180
     directory = "/home/pi/motion/"
     dateTime = getDateTime()
     filename = "motion-{}.png".format(str(dateTime))
     camera.capture('{}{}'.format(directory, filename))
     camera.close()
+    return filename
 
 
 def takeVideo(seconds):
@@ -57,6 +60,7 @@ def takeVideo(seconds):
     camera.wait_recording(seconds)
     camera.stop_recording()
     camera.close()
+    return filename
 
 
 def lightOn():
@@ -157,7 +161,7 @@ def tweet(mediaName):
     # to create a list of phrases to send when motion is detected
     phrases = [
         "Ahoy burglar!",
-        "What out, dodgy geezer about!",
+        "Watch out, dodgy geezer about!",
         "Motion detected!",
         "Humphry's about!",
         "Oi, oi!",
@@ -166,7 +170,7 @@ def tweet(mediaName):
 
     my_phrase = choice(phrases)
 
-    twitter.update_with_media("/home/pi/motion/{}, {}"format(mediaName, my_phrase))
+    twitter.update_with_media('/home/pi/motion/{}'.format(mediaName), '{}'.format(my_phrase))
 
 
 #######
@@ -188,6 +192,7 @@ MINCAMERADELAY = 5 * 60 # Time in seconds between taking photo / video
 VIDEODURATION = 3 # Duration in seconds for video recording
 earliestCamera = time.time() # Earliest point next recording will take place (used to limit frequency of recording)
 redLEDOnUntil = time.time()
+REDLEDONTIME = 5 # Time (seconds) for red light to show when motion is detected
 
 def main():
     # Set up pinPIR as input
@@ -198,13 +203,17 @@ def main():
         lightStatus = lightOff()
         # Set current time as time for earliest recording
         earliestCamera = time.time()
+        # Set the time that red LED will turn off
+        redLEDOnUntil = time.time()
+        # Set the time that the light will turn off
+        lightOnUntil = time.time()
         print("Waiting for PIR to settle...")
         # Loop until PIR output is 0
         while GPIO.input(pinPIR) ==1:
             currentMotion = 0
 
         print("...Ready")
-        lightOnUntil = time.time()
+#        lightOnUntil = time.time()
         #Loop until user quits with CTRL-C
         while True:
             # Read PIR state
@@ -213,6 +222,7 @@ def main():
             if currentMotion == 1:
                 print("motion detected")
                 redLEDOn()
+                redLEDOnUntil = time.time() + REDLEDONTIME
                 lastDetectionTime = time.time() ##### not very good around here - two variables with different time
                 strfLastDetectionTime = datetime.now().strftime("%H:%M:%S")
                 print("last detection time = {}".format(strfLastDetectionTime))
@@ -228,8 +238,8 @@ def main():
                         print("blue light on")
                         lightStatus = lightOn()
 
-                takeVideo(VIDEODURATION)
-                tweet()
+                filename = takePhoto() #Video(VIDEODURATION)
+                tweet(filename)
                 
 #                elif lightLevel <= LIGHTONTHRESHOLD:
 #                    blueLEDOff()
@@ -238,10 +248,13 @@ def main():
                 # send instruction to turn off light
                     # set light status to 0
 
+            if time.time() > redLEDOnUntil:
+                redLEDOff()
+                
             if time.time() > lightOnUntil:
                 if lightStatus == 1:
                     lightStatus = lightOff()
-            time.sleep(1)
+    #        time.sleep(1)
                 
     #            lastDetectionTime = time.strftime("%H:%M:%S")
     #            print("...Motion Detected!")

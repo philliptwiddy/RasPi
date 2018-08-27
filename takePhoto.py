@@ -10,6 +10,7 @@ def getDateTime():
 
 def takePhoto():
     camera = PiCamera()
+    camera.rotation = 180
     directory = "/home/pi/motion/"
     dateTime = getDateTime()
     filename = "motion-{}.png".format(str(dateTime))
