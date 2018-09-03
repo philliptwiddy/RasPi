@@ -1,7 +1,7 @@
 import os
 import time
 from picamera import PiCamera
-from datetime import datetime
+from datetime import datetime, timedelta
 import tweepy
 import json
 from random import choice
@@ -193,6 +193,7 @@ VIDEODURATION = 3 # Duration in seconds for video recording
 earliestCamera = time.time() # Earliest point next recording will take place (used to limit frequency of recording)
 redLEDOnUntil = time.time()
 REDLEDONTIME = 5 # Time (seconds) for red light to show when motion is detected
+SCANFREQ = 5 #Time (seconds) between checks for motion
 
 def main():
     # Set up pinPIR as input
@@ -223,10 +224,11 @@ def main():
                 print("motion detected")
                 redLEDOn()
                 redLEDOnUntil = time.time() + REDLEDONTIME
-                lastDetectionTime = time.time() ##### not very good around here - two variables with different time
+                lastDetectionTime = datetime.now()##### not very good around here - two variables with different time
                 strfLastDetectionTime = datetime.now().strftime("%H:%M:%S")
                 print("last detection time = {}".format(strfLastDetectionTime))
-                lightOnUntil = lastDetectionTime + lightOnTimeS
+                #lightOnUntil = lastDetectionTime + lightOnTimeS
+                lightOnUntil = lastDetectionTime + timedelta(seconds=MINCAMERADELAY)
                 print("light stays on until {}".format(lightOnUntil))
                 # Detect current light level
                 lightLevel = readLDR()
@@ -238,8 +240,10 @@ def main():
                         print("blue light on")
                         lightStatus = lightOn()
 
-                filename = takePhoto() #Video(VIDEODURATION)
-                tweet(filename)
+                if time.time() > earliestCamera:
+                    filename = takePhoto() #Video(VIDEODURATION)
+                    tweet(filename)
+                    earliestCamera += MINCAMERADELAY
                 
 #                elif lightLevel <= LIGHTONTHRESHOLD:
 #                    blueLEDOff()
@@ -251,9 +255,10 @@ def main():
             if time.time() > redLEDOnUntil:
                 redLEDOff()
                 
-            if time.time() > lightOnUntil:
+            if time.time() > lightOnUntill:
                 if lightStatus == 1:
                     lightStatus = lightOff()
+            time.sleep(SCANFREQ)
     #        time.sleep(1)
                 
     #            lastDetectionTime = time.strftime("%H:%M:%S")
