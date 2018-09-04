@@ -5,34 +5,12 @@ from datetime import datetime, timedelta
 import tweepy
 import json
 from random import choice
-
-
-#import glob
-# import pymysql
 import RPi.GPIO as GPIO
-#from time import strftime
-#import send_email_breech as send
-import requests
-
-#os.system('modprobe w1-gpio')
-#os.system('modprobe w1-therm')
-#temp_sensor = '/sys/bus/w1/devices/28-0516a4c767ff/w1_slave'
-#ldr_pin = 27 # Light-Dependent Resistor (LDR)
+#import requests ##### THINK THIS IS FOR SENDING TEXTS?
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
 
-# variables for MySQL
-#db = pymysql.connect(host='localhost',user='monitor',password='password',db='temp_database')
-#cur = db.cursor()
-
-# variables for temperature comparison and sending emails when thresholds are breeched
-#high = 20
-#veryhigh = 25
-#low = 10
-#verylow = 5
-#freezing = 0
-#heateron = 15
 
 def getDateTime():
     dt = datetime.now().strftime("%Y-%m-%d,%H:%M:%S")
@@ -73,8 +51,7 @@ def lightOn():
             }
         }# state = 1 turns on the plug}
     headers = {'content-type':'application/json'}
-    response = requests.post(url, headers=headers, json=payload)
-    
+    response = requests.post(url, headers=headers, json=payload)    
     print()
     print(response.text)
     print()
@@ -85,6 +62,7 @@ def lightOn():
         print("light did not turn on")
         lightStatus = 0
     return lightStatus
+
 
 def lightOff():
     url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
@@ -97,7 +75,6 @@ def lightOff():
         }# state = 0 turns off the plug
     headers = {'content-type':'application/json'}
     response = requests.post(url, headers=headers, json=payload)
-
     print()
     print(response.text)
     print()
@@ -193,7 +170,7 @@ VIDEODURATION = 3 # Duration in seconds for video recording
 earliestCamera = time.time() # Earliest point next recording will take place (used to limit frequency of recording)
 redLEDOnUntil = time.time()
 REDLEDONTIME = 5 # Time (seconds) for red light to show when motion is detected
-SCANFREQ = 5 #Time (seconds) between checks for motion
+SCANFREQ = 5 # Time (seconds) between checks for motion
 
 def main():
     # Set up pinPIR as input
@@ -203,33 +180,30 @@ def main():
         # Turn light off to start
         lightStatus = lightOff()
         # Set current time as time for earliest recording
-        earliestCamera = time.time()
+        earliestCamera = datetime.now()
         # Set the time that red LED will turn off
-        redLEDOnUntil = time.time()
+        redLEDOnUntil = datetime.now()
         # Set the time that the light will turn off
-        lightOnUntil = time.time()
+        lightOnUntil = datetime.now()
         print("Waiting for PIR to settle...")
         # Loop until PIR output is 0
         while GPIO.input(pinPIR) ==1:
             currentMotion = 0
 
         print("...Ready")
-#        lightOnUntil = time.time()
         #Loop until user quits with CTRL-C
         while True:
             # Read PIR state
             currentMotion = GPIO.input(pinPIR)
             # If the PIR is triggered
             if currentMotion == 1:
+                lastDetectionTime = datetime.now()
                 print("motion detected")
                 redLEDOn()
-                redLEDOnUntil = time.time() + REDLEDONTIME
-                lastDetectionTime = datetime.now()##### not very good around here - two variables with different time
-                strfLastDetectionTime = datetime.now().strftime("%H:%M:%S")
-                print("last detection time = {}".format(strfLastDetectionTime))
-                #lightOnUntil = lastDetectionTime + lightOnTimeS
+                redLEDOnUntil = datetime.now() + timedelta(seconds=REDLEDONTIME)
+                print("last detection time = {}".format(lastDetectionTime.strftime("%H:%M:%S")))
                 lightOnUntil = lastDetectionTime + timedelta(seconds=MINCAMERADELAY)
-                print("light stays on until {}".format(lightOnUntil))
+                print("light stays on until {}".format(lightOnUntil.strftime("%H:%M:%S")))
                 # Detect current light level
                 lightLevel = readLDR()
                 print("light reading is {}".format(lightLevel))
@@ -240,105 +214,18 @@ def main():
                         print("blue light on")
                         lightStatus = lightOn()
 
-                if time.time() > earliestCamera:
+                if datetime.now() > earliestCamera:
                     filename = takePhoto() #Video(VIDEODURATION)
                     tweet(filename)
-                    earliestCamera += MINCAMERADELAY
-                
-#                elif lightLevel <= LIGHTONTHRESHOLD:
-#                    blueLEDOff()
-                    # elif current light level above threshold
-                # elif lightStatus == 1:
-                # send instruction to turn off light
-                    # set light status to 0
+                    earliestCamera += timedelta(seconds=MINCAMERADELAY)
 
-            if time.time() > redLEDOnUntil:
+            if datetime.now() > redLEDOnUntil:
                 redLEDOff()
                 
-            if time.time() > lightOnUntill:
+            if datetime.now() > lightOnUntill:
                 if lightStatus == 1:
                     lightStatus = lightOff()
             time.sleep(SCANFREQ)
-    #        time.sleep(1)
-                
-    #            lastDetectionTime = time.strftime("%H:%M:%S")
-    #            print("...Motion Detected!")
-    #            # Record previous state
-    #            previousState = 1
-    #        # If the PIR has returned to ready state
-    #        elif currentState == 0 and previousState == 1:
-    #            print("...Ready")
-    #            previousState = 0
-    #
-    #        # Wait for 10 milliseconds
-    #        time.sleep(0.01)
-
-    except KeyboardInterrupt:
-        print("Quitting...")
-        lightOff()
-
-        # Reset GPIO settings
-        GPIO.cleanup()
-
-    #def tempRead():
-    #    t = open(temp_sensor, 'r')
-    #    lines = t.readlines()
-    #    t.close()
-    #
-    #    temp_output = lines[1].find('t=')
-    #    if temp_output != -1:
-    #        temp_string = lines[1].strip()[temp_output+2:]
-    #        temp_c = float(temp_string)/1000.0
-    #    return round(temp_c,1)
-    #
-    #while True:
-    #    temp = tempRead()
-    #    print(temp)
-    #    datetimeWrite = (time.strftime("%Y-%m-%d ") + time.strftime("%H:%M:%S"))
-    #    print(datetimeWrite)
-    ##    sql = ("""INSERT INTO tempLogcron (datetime, temperature, light) VALUES (%s,%s,%s)""",(datetimeWrite,temp,light))
-    ##    sql_max_id = ("""SELECT max(`id`) FROM `tempLogcron`""") #NEW
-    ##    sql_temp_max_id = ("""SELECT `temperature` FROM `tempLogcron` WHERE `id` = (SELECT max(`id`) FROM `tempLogcron`)""") #NEW
-    ##    sql_previous_temp_max_id = ("""SELECT `temperature` FROM `tempLogcron` WHERE `id` = (SELECT max(`id`) FROM `tempLogcron` WHERE 1)-1""") #NEW
-    ##    
-    #    try:
-    #        date = time.strftime("%d/%m/%Y")
-    #        print(date)
-    #        sqldate = ("""SELECT `WFH` FROM `WFHDates` WHERE `Date`='2017-10-05'""")
-    #
-    #       
-    #        cur.execute(sqldate)
-    #        (wfh,) = cur.fetchone()
-    #        print(wfh)
-    #        if temp < heateron:
-    #
-    #        time.sleep(15)
-    #
-    #
-    #    else:
-    #        print("else")
-    #        url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B1B8YgawmklZuao1HoFEfSO"
-    #        payload = {
-    #            "method":"passthrough",
-    #            "params":{
-    #                "deviceId":"8006DF15B34A28FD866A58D702140318198880A7",
-    #                "requestData": "{\"system\":{\"set_relay_state\":{\"state\":0}}}"
-    #                }
-    #            }# state = 1 turns on the plug}
-    #        headers = {'content-type':'application/json'}
-    #        response = requests.post(url, headers=headers, json=payload)
-    #
-    #        print()
-    #        print(response.text)
-    #        print()
-    #        if response.text[:15] == '{"error_code":0':
-    #            print("light turned off")
-    #        else:
-    #            print("light did not turn off")
-    #
-    #    except:
-    #        print("something failed")
-    #    break
 
 if __name__ == '__main__':
     main()
