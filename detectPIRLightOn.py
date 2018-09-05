@@ -42,14 +42,26 @@ def takeVideo(seconds):
 
 
 def lightOn():
-    url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
+    with open("HomeOfficeLightCredentials.json") as file:
+        lightCreds = json.load(file)
+
+    url = lightCreds["urlToken"]#"https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
+#    payload = {
+#        "method":"passthrough",
+#        "params":{
+#            "deviceId":"8006DF15B34A28FD866A58D702140318198880A7",
+#            "requestData": "{\"system\":{\"set_relay_state\":{\"state\":1}}}"
+#            }
+#        }# state = 1 turns on the plug}
+
     payload = {
         "method":"passthrough",
         "params":{
-            "deviceId":"8006DF15B34A28FD866A58D702140318198880A7",
+            "deviceId":"{}",
             "requestData": "{\"system\":{\"set_relay_state\":{\"state\":1}}}"
-            }
+            }.format(lightCreds["deviceID"])
         }# state = 1 turns on the plug}
+
     headers = {'content-type':'application/json'}
     response = requests.post(url, headers=headers, json=payload)    
     print()
