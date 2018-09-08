@@ -6,7 +6,7 @@ import tweepy
 import json
 from random import choice
 import RPi.GPIO as GPIO
-#import requests ##### THINK THIS IS FOR SENDING TEXTS?
+import requests ##### THINK THIS IS FOR SENDING TEXTS?
 
 GPIO.setwarnings(False)
 GPIO.setmode(GPIO.BCM)
@@ -42,25 +42,17 @@ def takeVideo(seconds):
 
 
 def lightOn():
-    with open("HomeOfficeLightCredentials.json") as file:
+    with open("homeOfficeLightCredentials.json") as file:
         lightCreds = json.load(file)
 
-    url = lightCreds["urlToken"]#"https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
-#    payload = {
-#        "method":"passthrough",
-#        "params":{
-#            "deviceId":"8006DF15B34A28FD866A58D702140318198880A7",
-#            "requestData": "{\"system\":{\"set_relay_state\":{\"state\":1}}}"
-#            }
-#        }# state = 1 turns on the plug}
-
+    url = lightCreds["urlToken"]
     payload = {
         "method":"passthrough",
         "params":{
-            "deviceId":"{}",
+            "deviceId":"{}".format(lightCreds["deviceId"]),
             "requestData": "{\"system\":{\"set_relay_state\":{\"state\":1}}}"
-            }.format(lightCreds["deviceID"])
-        }# state = 1 turns on the plug}
+            }
+       }# state = 1 turns on the plug}
 
     headers = {'content-type':'application/json'}
     response = requests.post(url, headers=headers, json=payload)    
@@ -77,14 +69,18 @@ def lightOn():
 
 
 def lightOff():
-    url = "https://eu-wap.tplinkcloud.com?token=dadc92e2-B25hib6hw7YpK1exxwa1L7l"
+    with open("homeOfficeLightCredentials.json") as file:
+        lightCreds = json.load(file)
+
+    url = lightCreds["urlToken"]
     payload = {
         "method":"passthrough",
         "params":{
-            "deviceId":"8006DF15B34A28FD866A58D702140318198880A7",
+            "deviceId":"{}".format(lightCreds["deviceId"]),
             "requestData": "{\"system\":{\"set_relay_state\":{\"state\":0}}}"
             }
-        }# state = 0 turns off the plug
+       }# state = 1 turns on the plug}
+    
     headers = {'content-type':'application/json'}
     response = requests.post(url, headers=headers, json=payload)
     print()
@@ -234,10 +230,17 @@ def main():
             if datetime.now() > redLEDOnUntil:
                 redLEDOff()
                 
-            if datetime.now() > lightOnUntill:
+            if datetime.now() > lightOnUntil:
                 if lightStatus == 1:
                     lightStatus = lightOff()
             time.sleep(SCANFREQ)
 
-if __name__ == '__main__':
+    except KeyboardInterrupt:
+        print("Quitting...")
+        lightOff()
+
+        # Reset GPIO settings
+        GPIO.cleanup()
+        
+if __name__ == "__main__":
     main()
